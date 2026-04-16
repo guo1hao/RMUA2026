@@ -1,0 +1,56 @@
+<launch>
+  <arg name="drone_name" default="drone_1" />
+  <arg name="source_root" default="/airsim_node" />
+  <arg name="relay_root" default="/rmua/sensors" />
+  <arg name="path_csv" default="/home/hao/workspace-RosNoetic/rmua2026/drone_path.csv" />
+  <arg name="target_waypoint_index" default="69" />
+  <arg name="lookahead_distance_m" default="30.0" />
+  <arg name="waypoint_acceptance_radius_m" default="4.0" />
+  <arg name="final_acceptance_radius_m" default="3.0" />
+  <arg name="climb_priority_threshold_m" default="1.0" />
+  <arg name="climb_horizontal_leash_m" default="1.0" />
+  <arg name="climb_preview_waypoints" default="1" />
+  <arg name="warmup_samples" default="100" />
+  <arg name="official_odom_topic" default="/rmua/control/official/eskf_odom" />
+  <arg name="official_pose_topic" default="/rmua/control/official/eskf_pose" />
+
+  <include file="$(find rmua_sensor_hub)/launch/competition_stack.launch">
+    <arg name="drone_name" value="$(arg drone_name)" />
+    <arg name="source_root" value="$(arg source_root)" />
+    <arg name="relay_root" value="$(arg relay_root)" />
+  </include>
+
+  <node pkg="rmua_flight_control" type="official_eskf_node" name="official_eskf" output="screen">
+    <param name="gps_topic" value="$(arg relay_root)/$(arg drone_name)/gps" />
+    <param name="imu_topic" value="$(arg relay_root)/$(arg drone_name)/imu" />
+    <param name="initial_pose_topic" value="$(arg relay_root)/$(arg drone_name)/initial_pose" />
+    <param name="odom_topic" value="$(arg official_odom_topic)" />
+    <param name="pose_topic" value="$(arg official_pose_topic)" />
+  </node>
+
+  <include file="$(find rmua_flight_control)/launch/official_pwm_controller.launch">
+    <arg name="odom_topic" value="$(arg official_odom_topic)" />
+    <arg name="initial_pose_topic" value="$(arg relay_root)/$(arg drone_name)/initial_pose" />
+    <arg name="pose_setpoint_topic" value="/rmua/control/basic/pose_setpoint" />
+    <arg name="enable_topic" value="/rmua/control/basic/enable" />
+    <arg name="pwm_command_topic" value="/airsim_node/$(arg drone_name)/rotor_pwm_cmd" />
+    <arg name="warmup_samples" value="$(arg warmup_samples)" />
+  </include>
+
+  <node pkg="rmua_flight_control" type="path_mission_node" name="official_path_mission_node" output="screen">
+    <param name="path_csv" value="$(arg path_csv)" />
+    <param name="pose_topic" value="$(arg official_pose_topic)" />
+    <param name="pose_setpoint_topic" value="/rmua/control/basic/pose_setpoint" />
+    <param name="enable_topic" value="/rmua/control/basic/enable" />
+    <param name="world_frame_id" value="world_ned" />
+    <param name="target_waypoint_index" value="$(arg target_waypoint_index)" />
+    <param name="publish_rate_hz" value="20.0" />
+    <param name="lookahead_distance_m" value="$(arg lookahead_distance_m)" />
+    <param name="waypoint_acceptance_radius_m" value="$(arg waypoint_acceptance_radius_m)" />
+    <param name="final_acceptance_radius_m" value="$(arg final_acceptance_radius_m)" />
+    <param name="climb_priority_threshold_m" value="$(arg climb_priority_threshold_m)" />
+    <param name="climb_horizontal_leash_m" value="$(arg climb_horizontal_leash_m)" />
+    <param name="climb_preview_waypoints" value="$(arg climb_preview_waypoints)" />
+    <param name="enable_controller_on_start" value="true" />
+  </node>
+</launch>

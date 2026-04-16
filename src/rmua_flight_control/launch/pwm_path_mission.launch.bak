@@ -1,0 +1,86 @@
+<launch>
+  <arg name="drone_name" default="drone_1" />
+  <arg name="source_root" default="/airsim_node" />
+  <arg name="relay_root" default="/rmua/sensors" />
+  <arg name="hover_altitude_m" default="1.0" />
+  <arg name="path_csv" default="/home/hao/workspace-RosNoetic/rmua2026/drone_path.csv" />
+  <arg name="target_waypoint_index" default="69" />
+  <arg name="lookahead_distance_m" default="30.0" />
+  <arg name="min_lookahead_distance_m" default="4.0" />
+  <arg name="lookahead_error_reduction_gain" default="1.5" />
+  <arg name="turn_preview_distance_m" default="36.0" />
+  <arg name="turn_min_lookahead_distance_m" default="2.0" />
+  <arg name="turn_lookahead_min_scale" default="0.28" />
+  <arg name="turn_angle_reduction_gain" default="1.9" />
+  <arg name="terminal_lookahead_distance_m" default="0.0" />
+  <arg name="hover_pwm_estimate_override" default="0.265" />
+  <arg name="max_angle_rad" default="0.88" />
+  <arg name="tilt_compensation_min_cos" default="0.6" />
+  <arg name="waypoint_acceptance_radius_m" default="4.0" />
+  <arg name="final_acceptance_radius_m" default="3.0" />
+  <arg name="failure_progress_stall_timeout_s" default="3.0" />
+  <arg name="failure_stall_motion_radius_m" default="1.5" />
+  <arg name="failure_distance_improvement_m" default="1.5" />
+  <arg name="failure_min_distance_to_goal_m" default="12.0" />
+  <arg name="failure_zero_pwm_timeout_s" default="1.0" />
+  <arg name="failure_zero_pwm_threshold" default="0.08" />
+  <arg name="failure_zero_pwm_min_progress" default="8" />
+  <arg name="failure_grace_period_s" default="8.0" />
+  <arg name="climb_priority_threshold_m" default="1.0" />
+  <arg name="climb_horizontal_leash_m" default="3.0" />
+  <arg name="climb_horizontal_leash_scale" default="0.5" />
+  <arg name="climb_horizontal_leash_max_m" default="12.0" />
+  <arg name="climb_vertical_release_distance_m" default="6.0" />
+  <arg name="climb_vertical_step_m" default="6.0" />
+  <arg name="climb_preview_waypoints" default="1" />
+  <arg name="descent_release_distance_m" default="0.0" />
+
+  <include file="$(find rmua_flight_control)/launch/pwm_hover_stack.launch">
+    <arg name="drone_name" value="$(arg drone_name)" />
+    <arg name="source_root" value="$(arg source_root)" />
+    <arg name="relay_root" value="$(arg relay_root)" />
+    <arg name="hover_altitude_m" value="$(arg hover_altitude_m)" />
+    <arg name="hover_pwm_estimate_override" value="$(arg hover_pwm_estimate_override)" />
+    <arg name="max_angle_rad" value="$(arg max_angle_rad)" />
+    <arg name="tilt_compensation_min_cos" value="$(arg tilt_compensation_min_cos)" />
+  </include>
+
+  <node pkg="rmua_flight_control" type="path_mission_node" name="path_mission_node" output="screen" required="true">
+    <param name="path_csv" value="$(arg path_csv)" />
+    <param name="pose_topic" value="$(arg relay_root)/$(arg drone_name)/pose_gt" />
+    <param name="pose_setpoint_topic" value="/rmua/control/basic/pose_setpoint" />
+    <param name="enable_topic" value="/rmua/control/basic/enable" />
+    <param name="world_frame_id" value="world_ned" />
+    <param name="target_waypoint_index" value="$(arg target_waypoint_index)" />
+    <param name="publish_rate_hz" value="20.0" />
+    <param name="lookahead_distance_m" value="$(arg lookahead_distance_m)" />
+    <param name="min_lookahead_distance_m" value="$(arg min_lookahead_distance_m)" />
+    <param name="lookahead_error_reduction_gain" value="$(arg lookahead_error_reduction_gain)" />
+    <param name="turn_preview_distance_m" value="$(arg turn_preview_distance_m)" />
+    <param name="turn_min_lookahead_distance_m" value="$(arg turn_min_lookahead_distance_m)" />
+    <param name="turn_lookahead_min_scale" value="$(arg turn_lookahead_min_scale)" />
+    <param name="turn_angle_reduction_gain" value="$(arg turn_angle_reduction_gain)" />
+    <param name="terminal_lookahead_distance_m" value="$(arg terminal_lookahead_distance_m)" />
+    <param name="waypoint_acceptance_radius_m" value="$(arg waypoint_acceptance_radius_m)" />
+    <param name="final_acceptance_radius_m" value="$(arg final_acceptance_radius_m)" />
+    <param name="rotor_pwm_topic" value="$(arg relay_root)/$(arg drone_name)/debug/rotor_pwm" />
+    <param name="failure_abort_on_detection" value="true" />
+    <param name="failure_progress_stall_timeout_s" value="$(arg failure_progress_stall_timeout_s)" />
+    <param name="failure_stall_motion_radius_m" value="$(arg failure_stall_motion_radius_m)" />
+    <param name="failure_distance_improvement_m" value="$(arg failure_distance_improvement_m)" />
+    <param name="failure_min_distance_to_goal_m" value="$(arg failure_min_distance_to_goal_m)" />
+    <param name="failure_zero_pwm_timeout_s" value="$(arg failure_zero_pwm_timeout_s)" />
+    <param name="failure_zero_pwm_threshold" value="$(arg failure_zero_pwm_threshold)" />
+    <param name="failure_zero_pwm_min_progress" value="$(arg failure_zero_pwm_min_progress)" />
+    <param name="failure_grace_period_s" value="$(arg failure_grace_period_s)" />
+    <param name="climb_priority_threshold_m" value="$(arg climb_priority_threshold_m)" />
+    <param name="climb_horizontal_leash_m" value="$(arg climb_horizontal_leash_m)" />
+    <param name="climb_horizontal_leash_scale" value="$(arg climb_horizontal_leash_scale)" />
+    <param name="climb_horizontal_leash_max_m" value="$(arg climb_horizontal_leash_max_m)" />
+    <param name="climb_vertical_release_distance_m" value="$(arg climb_vertical_release_distance_m)" />
+    <param name="climb_vertical_step_m" value="$(arg climb_vertical_step_m)" />
+    <param name="climb_preview_waypoints" value="$(arg climb_preview_waypoints)" />
+    <param name="descent_release_distance_m" value="$(arg descent_release_distance_m)" />
+    <param name="enable_controller_on_start" value="true" />
+  </node>
+</launch>

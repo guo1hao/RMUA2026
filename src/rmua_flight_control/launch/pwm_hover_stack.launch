@@ -1,0 +1,26 @@
+<launch>
+  <arg name="drone_name" default="drone_1" />
+  <arg name="source_root" default="/airsim_node" />
+  <arg name="relay_root" default="/rmua/sensors" />
+  <arg name="hover_altitude_m" default="1.0" />
+  <arg name="hover_pwm_estimate_override" default="0.265" />
+  <arg name="max_angle_rad" default="0.5" />
+  <arg name="tilt_compensation_min_cos" default="0.6" />
+
+  <include file="$(find rmua_sensor_hub)/launch/competition_stack.launch">
+    <arg name="drone_name" value="$(arg drone_name)" />
+    <arg name="source_root" value="$(arg source_root)" />
+    <arg name="relay_root" value="$(arg relay_root)" />
+  </include>
+
+  <include file="$(find rmua_flight_control)/launch/basic_pwm_controller.launch">
+    <arg name="auto_enable" value="false" />
+    <arg name="hover_altitude_m" value="$(arg hover_altitude_m)" />
+    <arg name="pose_topic" value="$(arg relay_root)/$(arg drone_name)/pose_gt" />
+    <arg name="imu_topic" value="$(arg relay_root)/$(arg drone_name)/imu" />
+    <arg name="initial_pose_topic" value="$(arg relay_root)/$(arg drone_name)/initial_pose" />
+    <arg name="hover_pwm_estimate_override" value="$(arg hover_pwm_estimate_override)" />
+    <arg name="max_angle_rad" value="$(arg max_angle_rad)" />
+    <arg name="tilt_compensation_min_cos" value="$(arg tilt_compensation_min_cos)" />
+  </include>
+</launch>

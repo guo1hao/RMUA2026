@@ -1,0 +1,71 @@
+<launch>
+  <arg name="auto_enable" default="false" />
+  <arg name="hover_altitude_m" default="1.0" />
+  <arg name="pose_topic" default="/rmua/sensors/drone_1/pose_gt" />
+  <arg name="imu_topic" default="/rmua/sensors/drone_1/imu" />
+  <arg name="initial_pose_topic" default="/rmua/sensors/drone_1/initial_pose" />
+  <arg name="pose_setpoint_topic" default="/rmua/control/basic/pose_setpoint" />
+  <arg name="enable_topic" default="/rmua/control/basic/enable" />
+  <arg name="pwm_command_topic" default="/airsim_node/drone_1/rotor_pwm_cmd" />
+  <arg name="hover_pwm_estimate_override" default="0.265" />
+  <arg name="max_angle_rad" default="0.5" />
+  <arg name="tilt_compensation_min_cos" default="0.6" />
+
+  <node pkg="rmua_flight_control" type="basic_pwm_controller_node" name="basic_pwm_controller" output="screen">
+    <param name="auto_enable" value="$(arg auto_enable)" />
+    <param name="hover_altitude_m" value="$(arg hover_altitude_m)" />
+    <param name="pose_topic" value="$(arg pose_topic)" />
+    <param name="imu_topic" value="$(arg imu_topic)" />
+    <param name="initial_pose_topic" value="$(arg initial_pose_topic)" />
+    <param name="pose_setpoint_topic" value="$(arg pose_setpoint_topic)" />
+    <param name="enable_topic" value="$(arg enable_topic)" />
+    <param name="pwm_command_topic" value="$(arg pwm_command_topic)" />
+    <param name="hover_pwm_estimate_override" value="$(arg hover_pwm_estimate_override)" />
+
+    <param name="control_rate_hz" value="100.0" />
+    <param name="velocity_filter_alpha" value="0.25" />
+    <param name="initial_pose_home_distance_tolerance_m" value="2.0" />
+    <param name="mass" value="0.9" />
+    <param name="gravity" value="9.8" />
+    <param name="arm_length" value="0.18" />
+    <param name="ixx" value="0.0046890742" />
+    <param name="iyy" value="0.0069312" />
+    <param name="izz" value="0.010421166" />
+    <param name="thrust_coefficient" value="0.00036771704516278653" />
+    <param name="torque_coefficient" value="4.888486266072161e-06" />
+    <param name="max_rotor_rpm" value="11079.03" />
+    <param name="kp_x" value="1.0" />
+    <param name="kd_x" value="0.1" />
+    <param name="kp_y" value="1.0" />
+    <param name="kd_y" value="0.1" />
+    <param name="kp_z" value="4.0" />
+    <param name="ki_z" value="0.35" />
+    <param name="kv_z" value="6.0" />
+    <param name="z_integral_limit" value="8.0" />
+    <param name="z_integral_deadband_m" value="0.25" />
+    <param name="z_integral_horizontal_error_limit_m" value="4.0" />
+    <param name="z_integral_unwind_rate" value="4.0" />
+    <param name="vertical_priority_force_ratio" value="0.85" />
+    <param name="vertical_priority_error_z_m" value="8.0" />
+    <param name="vertical_priority_horizontal_error_m" value="4.0" />
+    <param name="vertical_priority_horizontal_scale" value="0.2" />
+    <param name="kp_vx" value="0.5" />
+    <param name="kd_vx" value="1.0" />
+    <param name="kp_vy" value="0.5" />
+    <param name="kd_vy" value="1.0" />
+    <param name="kp_roll" value="17.0" />
+    <param name="kd_roll" value="940.0" />
+    <param name="kp_pitch" value="20.0" />
+    <param name="kd_pitch" value="750.0" />
+    <param name="kp_yaw" value="5.0" />
+    <param name="kd_yaw" value="250.0" />
+    <param name="max_velocity" value="20.0" />
+    <param name="max_acceleration" value="20.0" />
+    <param name="max_angle_rad" value="$(arg max_angle_rad)" />
+    <param name="tilt_compensation_min_cos" value="$(arg tilt_compensation_min_cos)" />
+    <param name="max_roll_pitch_torque" value="2.0" />
+    <param name="max_yaw_torque" value="1.0" />
+    <param name="min_active_pwm" value="0.0" />
+    <param name="publish_zero_when_inactive" value="true" />
+  </node>
+</launch>

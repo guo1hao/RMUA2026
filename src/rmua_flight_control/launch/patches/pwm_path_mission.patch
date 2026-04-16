@@ -1,0 +1,21 @@
+*** Begin Patch
+*** Update File: src/rmua_flight_control/launch/pwm_path_mission.launch
+@@
+-  <arg name="lookahead_distance_m" default="20.0" />
++  <arg name="lookahead_distance_m" default="12.0" />
+@@
+-  <arg name="min_lookahead_distance_m" default="4.0" />
++  <arg name="min_lookahead_distance_m" default="3.0" />
+@@
+-  <arg name="turn_preview_distance_m" default="36.0" />
++  <arg name="turn_preview_distance_m" default="30.0" />
+@@
+-  <arg name="turn_min_lookahead_distance_m" default="2.0" />
++  <arg name="turn_min_lookahead_distance_m" default="1.0" />
+@@
+-  <arg name="turn_lookahead_min_scale" default="0.15" />
++  <arg name="turn_lookahead_min_scale" default="0.08" />
+@@
+-  <arg name="turn_angle_reduction_gain" default="3.0" />
++  <arg name="turn_angle_reduction_gain" default="4.5" />
+*** End Patch

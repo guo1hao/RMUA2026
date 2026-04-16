@@ -1,0 +1,15 @@
+<launch>
+  <arg name="drone_name" default="drone_1" />
+  <arg name="source_root" default="/airsim_node" />
+  <arg name="relay_root" default="/rmua/sensors" />
+  <arg name="queue_size" default="10" />
+  <arg name="status_publish_rate" default="2.0" />
+
+  <node pkg="rmua_sensor_hub" type="sensor_hub_node" name="sensor_hub" output="screen">
+    <param name="drone_name" value="$(arg drone_name)" />
+    <param name="source_root" value="$(arg source_root)" />
+    <param name="relay_root" value="$(arg relay_root)" />
+    <param name="queue_size" value="$(arg queue_size)" />
+    <param name="status_publish_rate" value="$(arg status_publish_rate)" />
+  </node>
+</launch>
