@@ -33,6 +33,10 @@ add_executable(path_mission_node
   src/path_mission_node.cpp
 )
 
+add_executable(obstacle_avoidance_node
+  src/obstacle_avoidance_node.cpp
+)
+
 add_executable(official_eskf_node
   src/official_eskf.cpp
   src/official_eskf_node.cpp
@@ -48,6 +52,11 @@ add_dependencies(basic_pwm_controller_node
 )
 
 add_dependencies(path_mission_node
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+
+add_dependencies(obstacle_avoidance_node
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS}
 )
@@ -70,6 +79,10 @@ target_link_libraries(path_mission_node
   ${catkin_LIBRARIES}
 )
 
+target_link_libraries(obstacle_avoidance_node
+  ${catkin_LIBRARIES}
+)
+
 target_link_libraries(official_eskf_node
   ${catkin_LIBRARIES}
 )
@@ -81,6 +94,7 @@ target_link_libraries(official_pwm_controller_node
 install(TARGETS
   basic_pwm_controller_node
   path_mission_node
+  obstacle_avoidance_node
   official_eskf_node
   official_pwm_controller_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

@@ -4,6 +4,7 @@
 
 ## 本地工程补充文档
 >+ 参数调节与一键启动说明：[parameter_tuning_and_startup.md](./parameter_tuning_and_startup.md)
+>+ Claude 避障开发交接说明：[claude_obstacle_avoidance_handoff.md](./claude_obstacle_avoidance_handoff.md)
 
 ## 官方测试环境
 > ros-noetic  

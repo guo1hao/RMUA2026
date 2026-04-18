@@ -1,0 +1,75 @@
+<launch>
+  <arg name="enable_avoidance" default="true" />
+  <arg name="raw_pose_setpoint_topic" default="/rmua/control/path/raw_pose_setpoint" />
+  <arg name="safe_pose_setpoint_topic" default="/rmua/control/basic/pose_setpoint" />
+  <arg name="pose_topic" default="/rmua/sensors/drone_1/pose_gt" />
+  <arg name="imu_topic" default="/rmua/sensors/drone_1/imu" />
+  <arg name="lidar_topic" default="/rmua/sensors/drone_1/lidar" />
+  <arg name="world_frame_id" default="world_ned" />
+  <arg name="publish_rate_hz" default="20.0" />
+  <arg name="input_timeout_s" default="0.5" />
+  <arg name="lidar_timeout_s" default="0.5" />
+  <arg name="near_target_passthrough_distance_m" default="1.0" />
+  <arg name="stable_hold_passthrough_distance_m" default="2.0" />
+  <arg name="stable_hold_passthrough_vertical_m" default="1.0" />
+  <arg name="min_obstacle_range_m" default="0.6" />
+  <arg name="max_obstacle_range_m" default="25.0" />
+  <arg name="obstacle_height_above_m" default="1.0" />
+  <arg name="obstacle_height_below_m" default="1.4" />
+  <arg name="obstacle_inflation_radius_m" default="1.0" />
+  <arg name="raw_corridor_half_angle_deg" default="12.0" />
+  <arg name="raw_path_clearance_m" default="6.0" />
+  <arg name="selected_path_clearance_m" default="5.0" />
+  <arg name="forward_safety_buffer_m" default="1.0" />
+  <arg name="emergency_stop_distance_m" default="2.5" />
+  <arg name="avoidance_lookahead_m" default="8.0" />
+  <arg name="min_avoidance_step_m" default="3.0" />
+  <arg name="max_heading_offset_deg" default="80.0" />
+  <arg name="clearance_recovery_hold_s" default="0.6" />
+  <arg name="side_switch_penalty_rad" default="0.35" />
+  <arg name="sector_count" default="72" />
+  <arg name="lidar_offset_x_m" default="0.0" />
+  <arg name="lidar_offset_y_m" default="0.0" />
+  <arg name="lidar_offset_z_m" default="-0.05" />
+  <arg name="lidar_roll_deg" default="0.0" />
+  <arg name="lidar_pitch_deg" default="0.0" />
+  <arg name="lidar_yaw_deg" default="0.0" />
+
+  <node pkg="rmua_flight_control" type="obstacle_avoidance_node" name="obstacle_avoidance_node" output="screen" respawn="true" respawn_delay="2.0">
+    <param name="enable_avoidance" value="$(arg enable_avoidance)" />
+    <param name="raw_pose_setpoint_topic" value="$(arg raw_pose_setpoint_topic)" />
+    <param name="safe_pose_setpoint_topic" value="$(arg safe_pose_setpoint_topic)" />
+    <param name="pose_topic" value="$(arg pose_topic)" />
+    <param name="imu_topic" value="$(arg imu_topic)" />
+    <param name="lidar_topic" value="$(arg lidar_topic)" />
+    <param name="world_frame_id" value="$(arg world_frame_id)" />
+    <param name="publish_rate_hz" value="$(arg publish_rate_hz)" />
+    <param name="input_timeout_s" value="$(arg input_timeout_s)" />
+    <param name="lidar_timeout_s" value="$(arg lidar_timeout_s)" />
+    <param name="near_target_passthrough_distance_m" value="$(arg near_target_passthrough_distance_m)" />
+    <param name="stable_hold_passthrough_distance_m" value="$(arg stable_hold_passthrough_distance_m)" />
+    <param name="stable_hold_passthrough_vertical_m" value="$(arg stable_hold_passthrough_vertical_m)" />
+    <param name="min_obstacle_range_m" value="$(arg min_obstacle_range_m)" />
+    <param name="max_obstacle_range_m" value="$(arg max_obstacle_range_m)" />
+    <param name="obstacle_height_above_m" value="$(arg obstacle_height_above_m)" />
+    <param name="obstacle_height_below_m" value="$(arg obstacle_height_below_m)" />
+    <param name="obstacle_inflation_radius_m" value="$(arg obstacle_inflation_radius_m)" />
+    <param name="raw_corridor_half_angle_deg" value="$(arg raw_corridor_half_angle_deg)" />
+    <param name="raw_path_clearance_m" value="$(arg raw_path_clearance_m)" />
+    <param name="selected_path_clearance_m" value="$(arg selected_path_clearance_m)" />
+    <param name="forward_safety_buffer_m" value="$(arg forward_safety_buffer_m)" />
+    <param name="emergency_stop_distance_m" value="$(arg emergency_stop_distance_m)" />
+    <param name="avoidance_lookahead_m" value="$(arg avoidance_lookahead_m)" />
+    <param name="min_avoidance_step_m" value="$(arg min_avoidance_step_m)" />
+    <param name="max_heading_offset_deg" value="$(arg max_heading_offset_deg)" />
+    <param name="clearance_recovery_hold_s" value="$(arg clearance_recovery_hold_s)" />
+    <param name="side_switch_penalty_rad" value="$(arg side_switch_penalty_rad)" />
+    <param name="sector_count" value="$(arg sector_count)" />
+    <param name="lidar_offset_x_m" value="$(arg lidar_offset_x_m)" />
+    <param name="lidar_offset_y_m" value="$(arg lidar_offset_y_m)" />
+    <param name="lidar_offset_z_m" value="$(arg lidar_offset_z_m)" />
+    <param name="lidar_roll_deg" value="$(arg lidar_roll_deg)" />
+    <param name="lidar_pitch_deg" value="$(arg lidar_pitch_deg)" />
+    <param name="lidar_yaw_deg" value="$(arg lidar_yaw_deg)" />
+  </node>
+</launch>

@@ -31,14 +31,9 @@ ensure_simulator_exists
 ensure_workspace_built
 source_workspace
 
-stop_rmua_runtime 0 || true
-
-if ! ros_master_is_up; then
-  stop_background_process roscore
-  start_roscore_process roscore
-  ROSCORE_STARTED=1
-  wait_for_ros_master 20
-fi
+stop_rmua_runtime 1 || true
+restart_local_ros_master
+ROSCORE_STARTED=1
 
 start_simulator_process simulator "${SEED}" render
 

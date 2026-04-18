@@ -9,6 +9,7 @@ SEED="${1:-$(generate_random_seed)}"
 TARGET_INDEX="${2:--1}"
 PATH_CSV="${3:-${WORKSPACE_ROOT}/drone_path.csv}"
 LOOKAHEAD_DISTANCE="${4:-16.0}"
+ENABLE_OBSTACLE_AVOIDANCE="${5:-true}"
 ROSCORE_STARTED=0
 
 cleanup() {
@@ -31,14 +32,9 @@ ensure_simulator_exists
 ensure_workspace_built
 source_workspace
 
-stop_rmua_runtime 0 || true
-
-if ! ros_master_is_up; then
-  stop_background_process roscore
-  start_roscore_process roscore
-  ROSCORE_STARTED=1
-  wait_for_ros_master 20
-fi
+stop_rmua_runtime 1 || true
+restart_local_ros_master
+ROSCORE_STARTED=1
 
 start_simulator_process simulator "${SEED}" render
 
@@ -50,6 +46,7 @@ else
   echo "[rmua] 目标 waypoint index: ${TARGET_INDEX}"
 fi
 echo "[rmua] 当前路径任务即比赛模式控制栈"
+echo "[rmua] lidar 避障开关: ${ENABLE_OBSTACLE_AVOIDANCE}"
 
 run_managed_roslaunch_stack \
   rmua_flight_control \
@@ -57,5 +54,6 @@ run_managed_roslaunch_stack \
   path_csv:="${PATH_CSV}" \
   target_waypoint_index:="${TARGET_INDEX}" \
   lookahead_distance_m:="${LOOKAHEAD_DISTANCE}" \
+  enable_obstacle_avoidance:="${ENABLE_OBSTACLE_AVOIDANCE}" \
   keep_runtime_alive:=true \
   failure_abort_on_detection:=false

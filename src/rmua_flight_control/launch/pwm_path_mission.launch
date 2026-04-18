@@ -2,6 +2,9 @@
   <arg name="drone_name" default="drone_1" />
   <arg name="source_root" default="/airsim_node" />
   <arg name="relay_root" default="/rmua/sensors" />
+  <arg name="enable_obstacle_avoidance" default="true" />
+  <arg name="raw_pose_setpoint_topic" default="/rmua/control/path/raw_pose_setpoint" />
+  <arg name="safe_pose_setpoint_topic" default="/rmua/control/basic/pose_setpoint" />
   <arg name="hover_altitude_m" default="1.0" />
   <arg name="path_csv" default="/home/hao/workspace-RosNoetic/rmua2026/drone_path.csv" />
   <arg name="target_waypoint_index" default="-1" />
@@ -47,16 +50,26 @@
     <arg name="drone_name" value="$(arg drone_name)" />
     <arg name="source_root" value="$(arg source_root)" />
     <arg name="relay_root" value="$(arg relay_root)" />
+    <arg name="pose_setpoint_topic" value="$(arg safe_pose_setpoint_topic)" />
     <arg name="hover_altitude_m" value="$(arg hover_altitude_m)" />
     <arg name="hover_pwm_estimate_override" value="$(arg hover_pwm_estimate_override)" />
     <arg name="max_angle_rad" value="$(arg max_angle_rad)" />
     <arg name="tilt_compensation_min_cos" value="$(arg tilt_compensation_min_cos)" />
   </include>
 
+  <include file="$(find rmua_flight_control)/launch/obstacle_avoidance.launch">
+    <arg name="enable_avoidance" value="$(arg enable_obstacle_avoidance)" />
+    <arg name="raw_pose_setpoint_topic" value="$(arg raw_pose_setpoint_topic)" />
+    <arg name="safe_pose_setpoint_topic" value="$(arg safe_pose_setpoint_topic)" />
+    <arg name="pose_topic" value="$(arg relay_root)/$(arg drone_name)/pose_gt" />
+    <arg name="imu_topic" value="$(arg relay_root)/$(arg drone_name)/imu" />
+    <arg name="lidar_topic" value="$(arg relay_root)/$(arg drone_name)/lidar" />
+  </include>
+
   <node pkg="rmua_flight_control" type="path_mission_node" name="path_mission_node" output="screen" respawn="true" respawn_delay="2.0">
     <param name="path_csv" value="$(arg path_csv)" />
     <param name="pose_topic" value="$(arg relay_root)/$(arg drone_name)/pose_gt" />
-    <param name="pose_setpoint_topic" value="/rmua/control/basic/pose_setpoint" />
+    <param name="pose_setpoint_topic" value="$(arg raw_pose_setpoint_topic)" />
     <param name="enable_topic" value="/rmua/control/basic/enable" />
     <param name="world_frame_id" value="world_ned" />
     <param name="target_waypoint_index" value="$(arg target_waypoint_index)" />
