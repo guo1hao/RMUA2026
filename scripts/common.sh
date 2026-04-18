@@ -8,6 +8,22 @@ SIM_ROOT="${RMUA_SIM_ROOT:-/home/hao/robomaster/RMUA/2026/simulator_12.0.0.5}"
 RUNTIME_ROOT="${WORKSPACE_ROOT}/.runtime"
 PID_ROOT="${RUNTIME_ROOT}/pids"
 LOG_ROOT="${RUNTIME_ROOT}/logs"
+ACTIVE_STACK_PID=""
+ACTIVE_MONITOR_PID=""
+
+shell_quote_join() {
+  local quoted_parts=()
+  local value=""
+  local quoted_value=""
+
+  for value in "$@"; do
+    printf -v quoted_value '%q' "${value}"
+    quoted_parts+=("${quoted_value}")
+  done
+
+  local IFS=' '
+  echo "${quoted_parts[*]}"
+}
 
 generate_random_seed() {
   local raw_seed
@@ -27,6 +43,11 @@ ensure_runtime_dirs() {
 stop_rmua_runtime() {
   local stop_roscore="${1:-0}"
 
+  stop_managed_stack_processes
+  stop_background_process sensor_stack
+  stop_background_process pwm_stack
+  stop_background_process mission_stack
+  stop_background_process official_mission_stack
   stop_stale_rmua_ros_processes
   stop_background_process simulator
 
@@ -64,6 +85,95 @@ start_roslaunch_stack() {
 
   source_workspace
   roslaunch "${launch_package}" "${launch_file}" "$@"
+}
+
+start_roscore_process() {
+  local name="$1"
+
+  start_background_process "${name}" roscore
+}
+
+get_background_process_pid() {
+  local name="$1"
+  local pid_file="${PID_ROOT}/${name}.pid"
+
+  if [[ ! -f "${pid_file}" ]]; then
+    return 1
+  fi
+
+  cat "${pid_file}"
+}
+
+start_process_exit_monitor() {
+  local watched_pid="$1"
+  local target_pid="$2"
+  local watched_name="${3:-process}"
+
+  (
+    while kill -0 "${watched_pid}" >/dev/null 2>&1; do
+      sleep 0.5
+    done
+
+    echo "[rmua] ${watched_name} 进程已退出，开始释放当前运行栈"
+    kill -INT "${target_pid}" >/dev/null 2>&1 || true
+    for _ in $(seq 1 20); do
+      if ! kill -0 "${target_pid}" >/dev/null 2>&1; then
+        exit 0
+      fi
+      sleep 0.2
+    done
+    kill -TERM "${target_pid}" >/dev/null 2>&1 || true
+  ) &
+
+  echo "$!"
+}
+
+stop_managed_stack_processes() {
+  if [[ -n "${ACTIVE_MONITOR_PID}" ]]; then
+    kill "${ACTIVE_MONITOR_PID}" >/dev/null 2>&1 || true
+    wait "${ACTIVE_MONITOR_PID}" >/dev/null 2>&1 || true
+    ACTIVE_MONITOR_PID=""
+  fi
+
+  if [[ -n "${ACTIVE_STACK_PID}" ]]; then
+    if kill -0 "${ACTIVE_STACK_PID}" >/dev/null 2>&1; then
+      kill -INT "${ACTIVE_STACK_PID}" >/dev/null 2>&1 || true
+      for _ in $(seq 1 20); do
+        if ! kill -0 "${ACTIVE_STACK_PID}" >/dev/null 2>&1; then
+          break
+        fi
+        sleep 0.2
+      done
+      kill -TERM "${ACTIVE_STACK_PID}" >/dev/null 2>&1 || true
+    fi
+    wait "${ACTIVE_STACK_PID}" >/dev/null 2>&1 || true
+    ACTIVE_STACK_PID=""
+  fi
+}
+
+run_managed_roslaunch_stack() {
+  local launch_package="$1"
+  local launch_file="$2"
+  shift 2
+
+  local simulator_pid=""
+  simulator_pid="$(get_background_process_pid simulator || true)"
+
+  local roslaunch_command=""
+  roslaunch_command="$(shell_quote_join roslaunch "${launch_package}" "${launch_file}" "$@")"
+
+  bash -lc "set -euo pipefail; source /opt/ros/noetic/setup.bash; if [[ -f \"${WORKSPACE_ROOT}/devel/setup.bash\" ]]; then source \"${WORKSPACE_ROOT}/devel/setup.bash\"; fi; exec ${roslaunch_command}" &
+  ACTIVE_STACK_PID=$!
+  local launch_exit_code=0
+
+  if [[ -n "${simulator_pid}" ]]; then
+    ACTIVE_MONITOR_PID="$(start_process_exit_monitor "${simulator_pid}" "${ACTIVE_STACK_PID}" simulator)"
+  fi
+
+  wait "${ACTIVE_STACK_PID}" || launch_exit_code=$?
+  stop_managed_stack_processes
+
+  return "${launch_exit_code}"
 }
 
 ensure_simulator_exists() {

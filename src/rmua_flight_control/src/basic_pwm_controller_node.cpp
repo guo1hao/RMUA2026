@@ -683,12 +683,12 @@ class BasicPwmControllerNode {
     const double safe_collective_force = std::max(collective_force, 1e-3);
     const double raw_desired_roll = Clamp(
         (mass_ / safe_collective_force)
-            * (desired_ax * std::sin(snapshot.target_yaw_rel_flu) - desired_ay * std::cos(snapshot.target_yaw_rel_flu)),
+        * (desired_ax * std::sin(attitude.yaw) - desired_ay * std::cos(attitude.yaw)),
         -max_angle_rad_,
         max_angle_rad_);
     const double raw_desired_pitch = Clamp(
       (mass_ / safe_collective_force)
-        * (desired_ax * std::cos(snapshot.target_yaw_rel_flu) + desired_ay * std::sin(snapshot.target_yaw_rel_flu)),
+      * (desired_ax * std::cos(attitude.yaw) + desired_ay * std::sin(attitude.yaw)),
         -max_angle_rad_,
         max_angle_rad_);
 

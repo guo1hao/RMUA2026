@@ -6,7 +6,7 @@
   <arg name="pwm_command_topic" default="/airsim_node/drone_1/rotor_pwm_cmd" />
   <arg name="warmup_samples" default="100" />
 
-  <node pkg="rmua_flight_control" type="official_pwm_controller_node" name="official_pwm_controller" output="screen">
+  <node pkg="rmua_flight_control" type="official_pwm_controller_node" name="official_pwm_controller" output="screen" respawn="true" respawn_delay="2.0">
     <param name="odom_topic" value="$(arg odom_topic)" />
     <param name="initial_pose_topic" value="$(arg initial_pose_topic)" />
     <param name="pose_setpoint_topic" value="$(arg pose_setpoint_topic)" />

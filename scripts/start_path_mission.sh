@@ -10,17 +10,12 @@ TARGET_INDEX="${2:--1}"
 PATH_CSV="${3:-${WORKSPACE_ROOT}/drone_path.csv}"
 LOOKAHEAD_DISTANCE="${4:-16.0}"
 ROSCORE_STARTED=0
-SIMULATOR_STARTED=0
 
 cleanup() {
   local exit_code=$?
-  local stop_roscore=0
+  trap - EXIT INT TERM
 
-  if [[ "${ROSCORE_STARTED}" -eq 1 ]]; then
-    stop_roscore=1
-  fi
-
-  if ! stop_rmua_runtime "${stop_roscore}"; then
+  if ! stop_rmua_runtime "${ROSCORE_STARTED}"; then
     if [[ "${exit_code}" -eq 0 ]]; then
       exit_code=1
     fi
@@ -40,13 +35,12 @@ stop_rmua_runtime 0 || true
 
 if ! ros_master_is_up; then
   stop_background_process roscore
-  start_background_process roscore roscore
+  start_roscore_process roscore
   ROSCORE_STARTED=1
   wait_for_ros_master 20
 fi
 
 start_simulator_process simulator "${SEED}" render
-SIMULATOR_STARTED=1
 
 echo "[rmua] 使用种子 ${SEED} 启动可视模式模拟器与路径任务"
 echo "[rmua] 目标路径文件: ${PATH_CSV}"
@@ -57,9 +51,11 @@ else
 fi
 echo "[rmua] 当前路径任务即比赛模式控制栈"
 
-start_roslaunch_stack \
+run_managed_roslaunch_stack \
   rmua_flight_control \
   pwm_path_mission.launch \
   path_csv:="${PATH_CSV}" \
   target_waypoint_index:="${TARGET_INDEX}" \
-  lookahead_distance_m:="${LOOKAHEAD_DISTANCE}"
+  lookahead_distance_m:="${LOOKAHEAD_DISTANCE}" \
+  keep_runtime_alive:=true \
+  failure_abort_on_detection:=false

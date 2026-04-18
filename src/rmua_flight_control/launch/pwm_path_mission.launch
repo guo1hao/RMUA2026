@@ -5,8 +5,11 @@
   <arg name="hover_altitude_m" default="1.0" />
   <arg name="path_csv" default="/home/hao/workspace-RosNoetic/rmua2026/drone_path.csv" />
   <arg name="target_waypoint_index" default="-1" />
+  <arg name="keep_runtime_alive" default="true" />
+  <arg name="failure_abort_on_detection" default="false" />
   <arg name="stable_point_indices" default="69" />
   <arg name="stable_point_hold_time_s" default="3.0" />
+  <arg name="stable_point_brake_trigger_distance_m" default="1.0" />
   <arg name="lookahead_distance_m" default="16.0" />
   <arg name="min_lookahead_distance_m" default="3.0" />
   <arg name="lookahead_error_reduction_gain" default="1.5" />
@@ -50,7 +53,7 @@
     <arg name="tilt_compensation_min_cos" value="$(arg tilt_compensation_min_cos)" />
   </include>
 
-  <node pkg="rmua_flight_control" type="path_mission_node" name="path_mission_node" output="screen" required="true">
+  <node pkg="rmua_flight_control" type="path_mission_node" name="path_mission_node" output="screen" respawn="true" respawn_delay="2.0">
     <param name="path_csv" value="$(arg path_csv)" />
     <param name="pose_topic" value="$(arg relay_root)/$(arg drone_name)/pose_gt" />
     <param name="pose_setpoint_topic" value="/rmua/control/basic/pose_setpoint" />
@@ -58,8 +61,10 @@
     <param name="world_frame_id" value="world_ned" />
     <param name="target_waypoint_index" value="$(arg target_waypoint_index)" />
     <param name="publish_rate_hz" value="20.0" />
+    <param name="keep_runtime_alive" value="$(arg keep_runtime_alive)" />
     <param name="stable_point_indices" value="$(arg stable_point_indices)" />
     <param name="stable_point_hold_time_s" value="$(arg stable_point_hold_time_s)" />
+    <param name="stable_point_brake_trigger_distance_m" value="$(arg stable_point_brake_trigger_distance_m)" />
     <param name="lookahead_distance_m" value="$(arg lookahead_distance_m)" />
     <param name="min_lookahead_distance_m" value="$(arg min_lookahead_distance_m)" />
     <param name="lookahead_error_reduction_gain" value="$(arg lookahead_error_reduction_gain)" />
@@ -74,7 +79,7 @@
     <param name="final_acceptance_radius_m" value="$(arg final_acceptance_radius_m)" />
     <param name="completion_hold_time_s" value="$(arg completion_hold_time_s)" />
     <param name="rotor_pwm_topic" value="$(arg relay_root)/$(arg drone_name)/debug/rotor_pwm" />
-    <param name="failure_abort_on_detection" value="true" />
+    <param name="failure_abort_on_detection" value="$(arg failure_abort_on_detection)" />
     <param name="failure_progress_stall_timeout_s" value="$(arg failure_progress_stall_timeout_s)" />
     <param name="failure_stall_motion_radius_m" value="$(arg failure_stall_motion_radius_m)" />
     <param name="failure_distance_improvement_m" value="$(arg failure_distance_improvement_m)" />

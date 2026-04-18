@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <fstream>
 #include <limits>
 #include <mutex>
@@ -19,9 +18,6 @@
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
-constexpr int kMissionFailureExitCode = 2;
-constexpr int kMissionSuccessExitCode = 0;
-
 double Clamp(const double value, const double low, const double high) {
   return std::max(low, std::min(value, high));
 }
@@ -149,8 +145,10 @@ class PathMissionNode {
     pnh_.param<std::string>("world_frame_id", world_frame_id_, "world_ned");
     pnh_.param("target_waypoint_index", target_waypoint_index_, -1);
     pnh_.param("publish_rate_hz", publish_rate_hz_, 20.0);
+    pnh_.param("keep_runtime_alive", keep_runtime_alive_, true);
     pnh_.param<std::string>("stable_point_indices", stable_point_indices_csv_, "69");
     pnh_.param("stable_point_hold_time_s", stable_point_hold_time_s_, 3.0);
+    pnh_.param("stable_point_brake_trigger_distance_m", stable_point_brake_trigger_distance_m_, 2.0);
     pnh_.param("lookahead_distance_m", lookahead_distance_m_, 30.0);
     pnh_.param("min_lookahead_distance_m", min_lookahead_distance_m_, 0.0);
     pnh_.param("lookahead_error_reduction_gain", lookahead_error_reduction_gain_, 0.0);
@@ -185,6 +183,7 @@ class PathMissionNode {
 
     publish_rate_hz_ = std::max(2.0, publish_rate_hz_);
     stable_point_hold_time_s_ = std::max(0.0, stable_point_hold_time_s_);
+    stable_point_brake_trigger_distance_m_ = std::max(0.0, stable_point_brake_trigger_distance_m_);
     lookahead_distance_m_ = std::max(0.0, lookahead_distance_m_);
     min_lookahead_distance_m_ = Clamp(min_lookahead_distance_m_, 0.0, lookahead_distance_m_);
     lookahead_error_reduction_gain_ = std::max(0.0, lookahead_error_reduction_gain_);
@@ -362,20 +361,32 @@ class PathMissionNode {
     }
 
     if (should_finish) {
-      ROS_INFO_STREAM("Mission completed successfully after holding final acceptance radius for "
-                      << completion_hold_time_s_ << " s");
-      std::exit(kMissionSuccessExitCode);
+      if (keep_runtime_alive_) {
+        ROS_INFO_STREAM("Mission completed successfully after holding final acceptance radius for "
+                        << completion_hold_time_s_
+                        << " s. keep_runtime_alive is enabled, continuing to run.");
+      } else {
+        ROS_INFO_STREAM("Mission completed successfully after holding final acceptance radius for "
+                        << completion_hold_time_s_ << " s");
+        ros::shutdown();
+        return;
+      }
     }
 
     if (should_abort) {
-      ROS_ERROR_STREAM("Mission failure detected: " << failure_reason
-                       << ", progress=" << target.progress_index << "/" << target_waypoint_index_
-                       << ", lookahead=" << target.lookahead_index
-                       << ", distance_to_final=" << target.distance_to_final);
-      if (failure_abort_on_detection_) {
-        std::exit(kMissionFailureExitCode);
+      if (!mission_failure_reported_) {
+        mission_failure_reported_ = true;
+        ROS_ERROR_STREAM("Mission failure detected: " << failure_reason
+                         << ", progress=" << target.progress_index << "/" << target_waypoint_index_
+                         << ", lookahead=" << target.lookahead_index
+                         << ", distance_to_final=" << target.distance_to_final);
       }
-      return;
+      if (!keep_runtime_alive_) {
+        if (failure_abort_on_detection_) {
+          ros::shutdown();
+        }
+        return;
+      }
     }
 
     geometry_msgs::PoseStamped target_message;
@@ -413,12 +424,30 @@ class PathMissionNode {
       return;
     }
 
+    if (stable_point_departure_active_
+        && current_waypoint_index_ >= stable_point_departure_waypoint_index_) {
+      ClearStablePointDepartureLocked();
+    }
+
+    const int next_stable_point_index = NextStablePointIndexLocked();
     while (current_waypoint_index_ < target_waypoint_index_) {
+      const int next_waypoint_index = current_waypoint_index_ + 1;
       const Waypoint& segment_start_waypoint = waypoints_[current_waypoint_index_];
-      const Waypoint& next_waypoint = waypoints_[current_waypoint_index_ + 1];
+      const Waypoint& next_waypoint = waypoints_[next_waypoint_index];
+
+      const bool approaching_pending_stable_point =
+          next_stable_point_index >= 0 && next_waypoint_index == next_stable_point_index;
+      if (approaching_pending_stable_point
+          && !ShouldEnterStableHoldLocked(next_stable_point_index)) {
+        break;
+      }
 
       if ((current_position_world_ned_ - next_waypoint.position_world_ned).norm() <= waypoint_acceptance_radius_m_) {
         ++current_waypoint_index_;
+        if (stable_point_departure_active_
+            && current_waypoint_index_ >= stable_point_departure_waypoint_index_) {
+          ClearStablePointDepartureLocked();
+        }
         continue;
       }
 
@@ -435,6 +464,10 @@ class PathMissionNode {
           / segment_length_squared;
       if (raw_projection_fraction >= 1.0) {
         ++current_waypoint_index_;
+        if (stable_point_departure_active_
+            && current_waypoint_index_ >= stable_point_departure_waypoint_index_) {
+          ClearStablePointDepartureLocked();
+        }
         continue;
       }
 
@@ -444,6 +477,51 @@ class PathMissionNode {
 
   std::string PendingNameLocked(const int pending_index) const {
     return "pending" + std::to_string(std::max(0, pending_index) + 1);
+  }
+
+  int NextStablePointIndexLocked() const {
+    if (next_stable_point_cursor_ >= stable_point_indices_.size()) {
+      return -1;
+    }
+    return stable_point_indices_[next_stable_point_cursor_];
+  }
+
+  void ClearStablePointDepartureLocked() {
+    stable_point_departure_active_ = false;
+    stable_point_departure_waypoint_index_ = -1;
+  }
+
+  bool ShouldEnterStableHoldLocked(const int stable_point_index) const {
+    if (stable_point_index < 0 || stable_point_index >= static_cast<int>(waypoints_.size())) {
+      return false;
+    }
+
+    const Eigen::Vector3d stable_point_error =
+        current_position_world_ned_ - waypoints_[stable_point_index].position_world_ned;
+    if (stable_point_error.norm() <= stable_point_brake_trigger_distance_m_) {
+      return true;
+    }
+
+    if (current_waypoint_index_ > stable_point_index) {
+      return true;
+    }
+
+    if (stable_point_index == 0) {
+      return current_waypoint_index_ >= stable_point_index;
+    }
+
+    const Eigen::Vector3d approach_segment =
+        waypoints_[stable_point_index].position_world_ned - waypoints_[stable_point_index - 1].position_world_ned;
+    const double approach_segment_length_squared = approach_segment.squaredNorm();
+    if (approach_segment_length_squared <= 1e-6) {
+      return current_waypoint_index_ >= stable_point_index;
+    }
+
+    const double projection_fraction =
+        (current_position_world_ned_ - waypoints_[stable_point_index - 1].position_world_ned)
+            .dot(approach_segment)
+        / approach_segment_length_squared;
+    return projection_fraction >= 1.0;
   }
 
   Eigen::Quaterniond ComputeStablePointAttitudeLocked(const int stable_point_index) const {
@@ -470,13 +548,22 @@ class PathMissionNode {
         return;
       }
 
+      const int completed_stable_point_index = active_stable_point_index_;
+      const int departure_waypoint_index = std::min(completed_stable_point_index + 1, target_waypoint_index_);
       stable_point_hold_active_ = false;
       stable_point_hold_start_stamp_ = ros::Time();
       active_stable_point_index_ = -1;
       ++active_pending_index_;
       ++next_stable_point_cursor_;
+      if (departure_waypoint_index > completed_stable_point_index) {
+        stable_point_departure_active_ = true;
+        stable_point_departure_waypoint_index_ = departure_waypoint_index;
+      } else {
+        ClearStablePointDepartureLocked();
+      }
       ROS_INFO_STREAM("Stable point switch complete. Active phase="
-                      << PendingNameLocked(active_pending_index_));
+                      << PendingNameLocked(active_pending_index_)
+                      << ", departure_waypoint=" << stable_point_departure_waypoint_index_);
       return;
     }
 
@@ -484,16 +571,23 @@ class PathMissionNode {
       return;
     }
 
-    const int stable_point_index = stable_point_indices_[next_stable_point_cursor_];
-    if (stable_point_index >= target_waypoint_index_ || current_waypoint_index_ < stable_point_index) {
+    const int stable_point_index = NextStablePointIndexLocked();
+    if (stable_point_index < 0
+        || stable_point_index >= target_waypoint_index_
+        || current_waypoint_index_ < stable_point_index
+        || !ShouldEnterStableHoldLocked(stable_point_index)) {
       return;
     }
 
     active_stable_point_index_ = stable_point_index;
     stable_point_hold_active_ = true;
+    ClearStablePointDepartureLocked();
     stable_point_hold_start_stamp_ = stamp;
     stable_point_attitude_world_ned_ = ComputeStablePointAttitudeLocked(stable_point_index);
+    const double distance_to_stable_point =
+        (current_position_world_ned_ - waypoints_[stable_point_index].position_world_ned).norm();
     ROS_INFO_STREAM("Reached stable point " << stable_point_index
+                    << " at distance " << distance_to_stable_point << " m"
                     << ". Holding for " << stable_point_hold_time_s_
                     << " s to switch from " << PendingNameLocked(active_pending_index_)
                     << " to " << PendingNameLocked(active_pending_index_ + 1));
@@ -501,9 +595,9 @@ class PathMissionNode {
 
   SampledTarget SampleLookaheadTargetLocked() const {
     SampledTarget sampled_target;
-    const Waypoint& final_waypoint = waypoints_[target_waypoint_index_];
+    const Waypoint& mission_final_waypoint = waypoints_[target_waypoint_index_];
     sampled_target.euclidean_distance_to_final =
-        (current_position_world_ned_ - final_waypoint.position_world_ned).norm();
+      (current_position_world_ned_ - mission_final_waypoint.position_world_ned).norm();
     sampled_target.progress_index = current_waypoint_index_;
     sampled_target.lookahead_index = std::min(current_waypoint_index_ + 1, target_waypoint_index_);
     sampled_target.pending_name = PendingNameLocked(active_pending_index_);
@@ -517,9 +611,27 @@ class PathMissionNode {
       return sampled_target;
     }
 
-    int segment_index = std::min(current_waypoint_index_, target_waypoint_index_ - 1);
+    if (stable_point_departure_active_
+        && stable_point_departure_waypoint_index_ > current_waypoint_index_
+        && stable_point_departure_waypoint_index_ <= target_waypoint_index_) {
+      sampled_target.position_world_ned = waypoints_[stable_point_departure_waypoint_index_].position_world_ned;
+      sampled_target.attitude_world_ned = waypoints_[stable_point_departure_waypoint_index_].attitude_world_ned;
+      sampled_target.lookahead_index = stable_point_departure_waypoint_index_;
+      return sampled_target;
+    }
+
+    int sampling_target_waypoint_index = target_waypoint_index_;
+    const int next_stable_point_index = NextStablePointIndexLocked();
+    if (next_stable_point_index > current_waypoint_index_
+        && next_stable_point_index <= sampling_target_waypoint_index) {
+      sampling_target_waypoint_index = next_stable_point_index;
+    }
+
+    const Waypoint& sampling_final_waypoint = waypoints_[sampling_target_waypoint_index];
+
+    int segment_index = std::min(current_waypoint_index_, sampling_target_waypoint_index - 1);
     double start_fraction = 0.0;
-    while (segment_index < target_waypoint_index_) {
+    while (segment_index < sampling_target_waypoint_index) {
       const Waypoint& segment_start_waypoint = waypoints_[segment_index];
       const Waypoint& segment_end_waypoint = waypoints_[segment_index + 1];
       const Eigen::Vector3d segment =
@@ -538,10 +650,10 @@ class PathMissionNode {
       break;
     }
 
-    if (segment_index >= target_waypoint_index_) {
-      sampled_target.position_world_ned = final_waypoint.position_world_ned;
-      sampled_target.attitude_world_ned = final_waypoint.attitude_world_ned;
-      sampled_target.lookahead_index = target_waypoint_index_;
+    if (segment_index >= sampling_target_waypoint_index) {
+      sampled_target.position_world_ned = sampling_final_waypoint.position_world_ned;
+      sampled_target.attitude_world_ned = sampling_final_waypoint.attitude_world_ned;
+      sampled_target.lookahead_index = sampling_target_waypoint_index;
       return sampled_target;
     }
 
@@ -590,14 +702,14 @@ class PathMissionNode {
         terminal_ratio);
       effective_lookahead = std::min(effective_lookahead, terminal_lookahead_cap);
     }
-    if (current_waypoint_index_ >= target_waypoint_index_) {
+    if (current_waypoint_index_ >= sampling_target_waypoint_index) {
       effective_lookahead = std::min(effective_lookahead, terminal_lookahead_distance_m_);
     }
 
     double remaining_lookahead = effective_lookahead;
     int sampled_segment_index = segment_index;
     double sampled_fraction = start_fraction;
-    while (sampled_segment_index < target_waypoint_index_) {
+    while (sampled_segment_index < sampling_target_waypoint_index) {
       const Waypoint& segment_start_waypoint = waypoints_[sampled_segment_index];
       const Waypoint& segment_end_waypoint = waypoints_[sampled_segment_index + 1];
       const Eigen::Vector3d segment =
@@ -610,7 +722,7 @@ class PathMissionNode {
       }
 
       const double distance_available = (1.0 - sampled_fraction) * segment_length;
-      if (remaining_lookahead <= distance_available || sampled_segment_index + 1 >= target_waypoint_index_) {
+      if (remaining_lookahead <= distance_available || sampled_segment_index + 1 >= sampling_target_waypoint_index) {
         const double target_fraction = Clamp(
             sampled_fraction + remaining_lookahead / segment_length,
             0.0,
@@ -620,7 +732,7 @@ class PathMissionNode {
         sampled_target.attitude_world_ned = segment_start_waypoint.attitude_world_ned.slerp(
             target_fraction,
             segment_end_waypoint.attitude_world_ned);
-        sampled_target.lookahead_index = std::min(sampled_segment_index + 1, target_waypoint_index_);
+        sampled_target.lookahead_index = std::min(sampled_segment_index + 1, sampling_target_waypoint_index);
 
         const Eigen::Vector2d next_waypoint_horizontal_delta(
             segment_end_waypoint.position_world_ned.x() - current_position_world_ned_.x(),
@@ -633,7 +745,7 @@ class PathMissionNode {
         }
 
         if (target_fraction >= 1.0 - 1e-3) {
-          sampled_target.lookahead_index = std::min(sampled_segment_index + 1, target_waypoint_index_);
+          sampled_target.lookahead_index = std::min(sampled_segment_index + 1, sampling_target_waypoint_index);
         }
         return sampled_target;
       }
@@ -643,9 +755,9 @@ class PathMissionNode {
       sampled_fraction = 0.0;
     }
 
-    sampled_target.position_world_ned = final_waypoint.position_world_ned;
-    sampled_target.attitude_world_ned = final_waypoint.attitude_world_ned;
-    sampled_target.lookahead_index = target_waypoint_index_;
+    sampled_target.position_world_ned = sampling_final_waypoint.position_world_ned;
+    sampled_target.attitude_world_ned = sampling_final_waypoint.attitude_world_ned;
+    sampled_target.lookahead_index = sampling_target_waypoint_index;
     return sampled_target;
   }
 
@@ -818,8 +930,10 @@ class PathMissionNode {
   std::string world_frame_id_;
   int target_waypoint_index_ = 69;
   double publish_rate_hz_ = 20.0;
+  bool keep_runtime_alive_ = true;
   std::string stable_point_indices_csv_ = "69";
   double stable_point_hold_time_s_ = 3.0;
+  double stable_point_brake_trigger_distance_m_ = 2.0;
   double lookahead_distance_m_ = 30.0;
   double min_lookahead_distance_m_ = 0.0;
   double lookahead_error_reduction_gain_ = 0.0;
@@ -859,14 +973,17 @@ class PathMissionNode {
   bool controller_enabled_published_ = false;
   bool mission_completed_logged_ = false;
   bool mission_completion_reported_ = false;
+  bool mission_failure_reported_ = false;
   bool failure_monitor_initialized_ = false;
   bool mission_failed_ = false;
   bool has_rotor_pwm_ = false;
   bool stable_point_hold_active_ = false;
+  bool stable_point_departure_active_ = false;
   int current_waypoint_index_ = 0;
   int best_progress_index_ = 0;
   int active_pending_index_ = 0;
   int active_stable_point_index_ = -1;
+  int stable_point_departure_waypoint_index_ = -1;
   std::size_t next_stable_point_cursor_ = 0;
   ros::Time current_pose_stamp_;
   ros::Time mission_start_stamp_;

@@ -66,6 +66,13 @@ cd /home/hao/workspace-RosNoetic/rmua2026
 3. 由脚本启动的 `roscore`。
 4. 残留渲染进程检查。
 
+现在这套启动脚本的行为是：
+
+1. 比赛失败、本地失败判定或任务完成时，不再因为任务节点退出而自动停掉整栈。
+2. 启动脚本仍然保持前台阻塞，所以你在启动终端里按 `Ctrl+C` 时，依然会彻底清理 ROS、模拟器和脚本拉起的 `roscore`。
+3. 如果你手动关闭模拟器窗口，脚本会检测到 simulator 进程已经退出，然后自动收栈释放剩余 ROS 进程。
+4. 如果你是从另一个终端主动结束，仍然直接执行 `./scripts/start_competition_mode.sh stop` 或 `./scripts/stop_stack.sh`。
+
 如果你是从另一个终端想主动结束，也不需要再记 `stop_stack.sh`，直接运行：
 
 ```bash
@@ -179,8 +186,10 @@ catkin_make --pkg rmua_flight_control rmua_sensor_hub
 | --- | --- | --- | --- |
 | `path_csv` | `/home/hao/workspace-RosNoetic/rmua2026/drone_path.csv` | `pwm_path_mission.launch` | 切换要飞的路径文件。 |
 | `target_waypoint_index` | `-1` | `pwm_path_mission.launch` 或 `start_path_mission.sh` 第 2 个参数 | 决定任务以哪个 waypoint 为目标终点。`-1` 表示直接用路径文件最后一个点；传具体数值时则只飞到指定点。 |
+| `keep_runtime_alive` | `true` | `pwm_path_mission.launch` | 任务完成或触发失败判定后，任务节点仍继续运行并持续保活整套控制栈，不主动退出。 |
 | `stable_point_indices` | `69` | `pwm_path_mission.launch` | 定义路径里的“稳定点”。当前默认把 69 设为 pending1 到 pending2 的切换位。 |
 | `stable_point_hold_time_s` | `3.0` | `pwm_path_mission.launch` | 到达稳定点后原地保持的时间。这段时间任务层会固定位置，只调 yaw 去对准下一个点。 |
+| `stable_point_brake_trigger_distance_m` | `2.0` | `pwm_path_mission.launch` | 稳定点专用急刹触发距离。以 68→69 为例，只有离 69 足够近时才会锁到 69 点并进入 hold，避免提前几米开始缓慢减速。 |
 | `publish_rate_hz` | `20.0` | `path_mission_node.cpp` 默认值，launch 里当前固定写死 `20.0` | 任务层 setpoint 发布频率。调大可让 setpoint 更新更密，但不会替代低层控制频率。 |
 | `pose_topic` | `/rmua/sensors/drone_1/pose_gt` | launch 或 cpp | 只改接口，不改控制行为。 |
 | `rotor_pwm_topic` | `/rmua/sensors/drone_1/debug/rotor_pwm` | launch 或 cpp | 只影响失败检测读取的 PWM 来源。 |
@@ -224,8 +233,9 @@ catkin_make --pkg rmua_flight_control rmua_sensor_hub
 
 1. `descent_release_distance_m` 仍然实际生效。
 2. `turn_short_segment_ignore_distance_m` 用来过滤像 46/47 这种异常短段，避免它们把 turn lookahead 压得过短。
-3. `terminal_slowdown_distance_m` 会在接近最终目标时提前收终点前视，解决“69 点没刹住”的问题。
-4. `descent_release_distance_m` 只在“目标点要求下降”时起作用，用来避免飞机离得还很远就先掉高度。
+3. `terminal_slowdown_distance_m` 只作用在最终目标段，用来让终点前视更早收回来，不负责 69 这种稳定点的刹停。
+4. `stable_point_brake_trigger_distance_m` 专门控制稳定点急刹触发距离，68→69 的停车手感优先调这个参数。
+5. `descent_release_distance_m` 只在“目标点要求下降”时起作用，用来避免飞机离得还很远就先掉高度。
 
 ### 3.4 稳定点与 pending 切换
 
@@ -233,9 +243,10 @@ catkin_make --pkg rmua_flight_control rmua_sensor_hub
 
 1. `0 -> 69` 这一段视为 `pending1`。
 2. `69` 当前被定义为稳定点，也是 `pending1 -> pending2` 的切换位置。
-3. 飞机到达 69 后，会在该点保持 `3` 秒左右。
-4. 这 3 秒内位置目标固定在 69 点，但 yaw 会对准下一个点 `70`。
-5. 保持完成后，任务自动切换到 `pending2`，继续沿 `70 -> ... -> 最后一个点` 前进。
+3. 飞机不会在离 69 还很远时提前锁点，而是要先进入 `stable_point_brake_trigger_distance_m` 设定的近距离区间，才会触发对 69 的急刹和 hold。
+4. 触发后会在 69 附近保持 `3` 秒左右。
+5. 这 3 秒内位置目标固定在 69 点，但 yaw 会对准下一个点 `70`。
+6. 保持完成后，任务自动切换到 `pending2`，继续沿 `70 -> ... -> 最后一个点` 前进。
 
 如果后面还要再扩展更多段，只需要继续往 `stable_point_indices` 里追加新的切换点，比如 `69,120,180`。
 
@@ -245,7 +256,7 @@ catkin_make --pkg rmua_flight_control rmua_sensor_hub
 
 | 参数 | 当前默认值 | 改哪里 | 调大效果 | 调小效果 |
 | --- | --- | --- | --- | --- |
-| `failure_abort_on_detection` | `true` | `pwm_path_mission.launch` 里当前固定写死 | 设成 `true` 时，一旦判失败就让任务节点退出，整栈结束 | 设成 `false` 时，只记日志，不自动结束验证 |
+| `failure_abort_on_detection` | `false` | `pwm_path_mission.launch` | 只有在 `keep_runtime_alive=false` 时才允许失败后主动结束任务节点；当前默认保活模式下不会自动停栈 | 设成 `false` 时，即使关闭保活模式，也只记日志或维持当前运行，不主动结束整栈 |
 | `failure_progress_stall_timeout_s` | `3.0` | `pwm_path_mission.launch` | 允许更久没有进度，误判更少，但失败发现更慢 | 更快认定“卡住了”，但更容易误判 |
 | `failure_stall_motion_radius_m` | `1.5` | `pwm_path_mission.launch` | 在超时窗口里，只要位移没超过更大的半径就算停滞，判定更严格 | 更宽松，不容易因为小范围抖动被判失败 |
 | `failure_distance_improvement_m` | `1.5` | `pwm_path_mission.launch` | 需要更明显地接近终点才算“有进展”，判定更严格 | 只要略微接近终点就会刷新进展时间，更宽松 |
@@ -258,7 +269,7 @@ catkin_make --pkg rmua_flight_control rmua_sensor_hub
 补充说明：
 
 1. 当前失败后不会主动向飞机再发“关闭控制器”之类的命令。
-2. 现在的行为是：识别到失败后，任务节点退出，验证结束，由脚本负责收栈。
+2. 现在默认 `keep_runtime_alive=true`：识别到失败后只记日志并保持整栈继续运行；按 `Ctrl+C`、执行 `stop`，或者手动关闭模拟器时，脚本才会负责收栈。
 
 ### 3.6 当前 launch 里保留但在这版代码里没有实际效果的参数
 

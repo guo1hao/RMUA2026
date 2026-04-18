@@ -11,7 +11,7 @@
   <arg name="max_angle_rad" default="1.05" />
   <arg name="tilt_compensation_min_cos" default="0.6" />
 
-  <node pkg="rmua_flight_control" type="basic_pwm_controller_node" name="basic_pwm_controller" output="screen">
+  <node pkg="rmua_flight_control" type="basic_pwm_controller_node" name="basic_pwm_controller" output="screen" respawn="true" respawn_delay="2.0">
     <param name="auto_enable" value="$(arg auto_enable)" />
     <param name="hover_altitude_m" value="$(arg hover_altitude_m)" />
     <param name="pose_topic" value="$(arg pose_topic)" />

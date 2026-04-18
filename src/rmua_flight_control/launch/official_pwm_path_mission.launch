@@ -4,6 +4,8 @@
   <arg name="relay_root" default="/rmua/sensors" />
   <arg name="path_csv" default="/home/hao/workspace-RosNoetic/rmua2026/drone_path.csv" />
   <arg name="target_waypoint_index" default="69" />
+  <arg name="keep_runtime_alive" default="true" />
+  <arg name="failure_abort_on_detection" default="false" />
   <arg name="lookahead_distance_m" default="30.0" />
   <arg name="waypoint_acceptance_radius_m" default="4.0" />
   <arg name="final_acceptance_radius_m" default="3.0" />
@@ -20,7 +22,7 @@
     <arg name="relay_root" value="$(arg relay_root)" />
   </include>
 
-  <node pkg="rmua_flight_control" type="official_eskf_node" name="official_eskf" output="screen">
+  <node pkg="rmua_flight_control" type="official_eskf_node" name="official_eskf" output="screen" respawn="true" respawn_delay="2.0">
     <param name="gps_topic" value="$(arg relay_root)/$(arg drone_name)/gps" />
     <param name="imu_topic" value="$(arg relay_root)/$(arg drone_name)/imu" />
     <param name="initial_pose_topic" value="$(arg relay_root)/$(arg drone_name)/initial_pose" />
@@ -37,7 +39,7 @@
     <arg name="warmup_samples" value="$(arg warmup_samples)" />
   </include>
 
-  <node pkg="rmua_flight_control" type="path_mission_node" name="official_path_mission_node" output="screen">
+  <node pkg="rmua_flight_control" type="path_mission_node" name="official_path_mission_node" output="screen" respawn="true" respawn_delay="2.0">
     <param name="path_csv" value="$(arg path_csv)" />
     <param name="pose_topic" value="$(arg official_pose_topic)" />
     <param name="pose_setpoint_topic" value="/rmua/control/basic/pose_setpoint" />
@@ -45,6 +47,8 @@
     <param name="world_frame_id" value="world_ned" />
     <param name="target_waypoint_index" value="$(arg target_waypoint_index)" />
     <param name="publish_rate_hz" value="20.0" />
+    <param name="keep_runtime_alive" value="$(arg keep_runtime_alive)" />
+    <param name="failure_abort_on_detection" value="$(arg failure_abort_on_detection)" />
     <param name="lookahead_distance_m" value="$(arg lookahead_distance_m)" />
     <param name="waypoint_acceptance_radius_m" value="$(arg waypoint_acceptance_radius_m)" />
     <param name="final_acceptance_radius_m" value="$(arg final_acceptance_radius_m)" />
